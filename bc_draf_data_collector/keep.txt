@@ -1,0 +1,131 @@
+// Versi: 08-05-2025 | Masa: 14:00 SGT
+// script.js – Eksport 72 medan dengan metadata teknik dalam sel, struktur rasmi + eksport JSON untuk AI
+
+const plots = [
+  "Permulaan", "Sub-Konflik", "Konflik",
+  "Sub-Kemuncak", "Kemuncak", "Peleraian", "Penutup"
+];
+
+const teknik = [
+  "Peristiwa", "Dialog", "Perasaan", "Mon Dalam",
+  "Mon Luar", "Gambaran", "Peribahasa", "Frasa Besar"
+];
+
+// Jana borang textarea 7×8 dalam #bcBody dengan data-row & data-col
+function populateTable() {
+  const tbody = document.getElementById("bcBody");
+  tbody.innerHTML = "";
+
+  plots.forEach((plot, rowIndex) => {
+    const tr = document.createElement("tr");
+
+    const tdPlot = document.createElement("td");
+    tdPlot.textContent = plot;
+    tr.appendChild(tdPlot);
+
+    teknik.forEach((tech, colIndex) => {
+      const td = document.createElement("td");
+      const textarea = document.createElement("textarea");
+      textarea.setAttribute("data-row", rowIndex);
+      textarea.setAttribute("data-col", colIndex);
+      textarea.setAttribute("data-teknik", tech);
+      textarea.className = `form-control ${tech.toLowerCase().replace(" ", "-")}`;
+      td.appendChild(textarea);
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// Eksport CSV 72 medan – 1 baris header + 7 baris × 9 kolum
+function exportCSV() {
+  let csv = "Plot," + teknik.join(",") + "\n";
+
+  plots.forEach((plot, i) => {
+    const row = document.querySelectorAll("#bcBody tr")[i];
+    const textareas = row.querySelectorAll("textarea");
+
+    const teks = Array.from(textareas).map((ta, j) => {
+      const tech = teknik[j];
+      const val = ta.value.replace(/"/g, '""');
+      return `"(${tech}) ${val}"`;
+    });
+
+    csv += `${plot},${teks.join(",")}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "karangan_bc.csv";
+  link.click();
+}
+
+// Import CSV – buang (Teknik) dan isi semula 56 textarea
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const lines = e.target.result.trim().split("\n");
+    if (lines.length !== 8) {
+      alert("CSV mesti ada 1 baris header + 7 baris isi.");
+      return;
+    }
+
+    const headers = lines[0].split(",");
+    if (headers.length !== 9 || headers[0] !== "Plot") {
+      alert("Header CSV tidak sah. Pastikan ia mengandungi 9 lajur bermula dengan 'Plot'.");
+      return;
+    }
+
+    const data = lines.slice(1).map(line =>
+      line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell =>
+        cell.replace(/^"|"$/g, '').replace(/""/g, '"').replace(/^\((.*?)\)\s*/, '')
+      )
+    );
+
+    const textareas = document.querySelectorAll("textarea");
+    if (textareas.length !== 56) {
+      alert("Borang hanya ada 56 medan input. Data CSV tidak serasi.");
+      return;
+    }
+
+    data.forEach((row, i) => {
+      for (let j = 0; j < 8; j++) {
+        const value = row[j + 1];
+        const textarea = document.querySelector(`textarea[data-row="${i}"][data-col="${j}"]`);
+        if (textarea) textarea.value = value;
+      }
+    });
+  };
+
+  reader.readAsText(file);
+}
+
+// Eksport format JSON – sesuai untuk AI sambung karangan
+function exportJSON() {
+  const jsonOutput = plots.map((plot, i) => {
+    const row = document.querySelectorAll("#bcBody tr")[i];
+    const textareas = row.querySelectorAll("textarea");
+
+    const obj = { plot: plot };
+    textareas.forEach((ta, j) => {
+      const tech = teknik[j];
+      obj[tech] = ta.value;
+    });
+
+    return obj;
+  });
+
+  const blob = new Blob([JSON.stringify(jsonOutput, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "karangan_bc.json";
+  link.click();
+}
+
+// Auto-jana jadual bila dokumen siap
+document.addEventListener("DOMContentLoaded", populateTable);
